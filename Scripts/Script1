@@ -1,0 +1,16 @@
+#bin/bash/env bash
+
+SAMPLES=(SRX4967499 SRX4967498 SRX4967496 SRX4967490 SRX4967483 SRX4967482)
+
+
+OUTPUT_DIR="raw"
+
+for SAMPLE in "${SAMPLES[@]}"; do
+    echo "Downloading $SAMPLE..."
+    prefetch "$SAMPLE" \
+        --output-directory "$OUTPUT_DIR" \
+        --max-size 50G \
+        --progress
+done
+
+echo "All downloads complete. Files saved to: $OUTPUT_DIR"
