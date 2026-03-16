@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+
+#SBATCH --job-name=sra_convert
+#SBATCH --output=logs/sra_convert_%a.out
+#SBATCH --error=logs/sra_convert_%a.err
+#SBATCH --time=12:00:00
+#SBATCH --mem=16G
+#SBATCH --cpus-per-task=4
+#SBATCH --array=0-5
+
+set -euo pipefail
+
+SAMPLES=(raw/SRR*/*.sra)
+OUTDIR="metagenomics_output"
+
+SAMPLE=${SAMPLES[$SLURM_ARRAY_TASK_ID]}
+NAME=$(basename ${SAMPLE} .sra)
+
+mkdir -p logs
+mkdir -p ${OUTDIR}/${NAME}/{classification,assembly,assembly_classification}
+
+# Convert .sra to fastq.gz
+apptainer exec --bind $(pwd) sra-tools_3.2.1--h4304569_1.sif fasterq-dump --outdir ${OUTDIR}/${NAME} --threads 8
