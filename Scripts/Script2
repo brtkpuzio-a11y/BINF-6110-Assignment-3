@@ -1,23 +1,51 @@
 #!/usr/bin/env bash
-
-#SBATCH --job-name=sra_convert
+#SBATCH --job-name=sra_convert.1
 #SBATCH --output=logs/sra_convert_%a.out
 #SBATCH --error=logs/sra_convert_%a.err
-#SBATCH --time=12:00:00
-#SBATCH --mem=16G
-#SBATCH --cpus-per-task=4
+#SBATCH --time=24:00:00
+#SBATCH --mem=32G
+#SBATCH --cpus-per-task=32
 #SBATCH --array=0-5
 
 set -euo pipefail
 
+module load apptainer
+
 SAMPLES=(raw/SRR*/*.sra)
 OUTDIR="metagenomics_output"
 
-SAMPLE=${SAMPLES[$SLURM_ARRAY_TASK_ID]}
-NAME=$(basename ${SAMPLE} .sra)
+SAMPLE="${SAMPLES[$SLURM_ARRAY_TASK_ID]}"
+NAME=$(basename "${SAMPLE}" .sra)
+SAMPLE_DIR="${OUTDIR}/${NAME}"
+
+R1="${SAMPLE_DIR}/${NAME}_1.fastq"
+R2="${SAMPLE_DIR}/${NAME}_2.fastq"
+R1_GZ="${R1}.gz"
+R2_GZ="${R2}.gz"
 
 mkdir -p logs
-mkdir -p ${OUTDIR}/${NAME}/{classification,assembly,assembly_classification}
+mkdir -p "${SAMPLE_DIR}"
 
-# Convert .sra to fastq.gz
-apptainer exec --bind $(pwd) sra-tools_3.2.1--h4304569_1.sif fasterq-dump --outdir ${OUTDIR}/${NAME} --threads 8
+echo "Processing ${NAME}"
+
+rm -f "${R1}" "${R2}" "${R1_GZ}" "${R2_GZ}"
+
+apptainer exec --bind "$(pwd)" sra-tools_3.2.1--h4304569_1.sif \
+    fasterq-dump \
+    --split-files \
+    --outdir "${SAMPLE_DIR}" \
+    --threads 32 \
+    "${SAMPLE}"
+
+if [[ ! -f "${R1}" || ! -f "${R2}" ]]; then
+    echo "ERROR: Paired FASTQ files were not created for ${NAME}"
+    exit 1
+fi
+
+gzip "${R1}"
+gzip "${R2}"
+
+gunzip -t "${R1_GZ}"
+gunzip -t "${R2_GZ}"
+
+echo "Finished ${NAME}"
