@@ -23,6 +23,17 @@ Beta diversity was assessed using Bray-Curtis dissimilarity. Principal coordinat
 Differential abundance analysis between omnivore and vegan groups was performed using ANCOMBC2 from the ANCOMBC package [5], with Diet as the fixed effect, Holm multiple testing correction, structural zero detection enabled (struc_zero = TRUE), and a minimum library size of 1,000 reads (lib_cut = 1000). Results were visualised as a ranked lollipop plot showing log fold change with standard error bars for all 66 tested taxa.
 
 ## Results
+<img width="924" height="490" alt="Alpha" src="https://github.com/user-attachments/assets/e6cf39dd-9e29-4917-95e9-8d233019ec54" />
+<img width="924" height="490" alt="diff_abd" src="https://github.com/user-attachments/assets/422d0b59-c2e3-4ee2-ab46-22f6b22637e7" />
+<img width="924" height="490" alt="family comp" src="https://github.com/user-attachments/assets/6895cd0f-5688-4745-a6b7-18ca440ceac9" />
+<img width="924" height="559" alt="genus" src="https://github.com/user-attachments/assets/b6c1ab60-649e-436b-8ac3-9540e94a377a" />
+<img width="924" height="490" alt="rare" src="https://github.com/user-attachments/assets/06a1541e-3649-46c7-8d32-e169085d4657" />
+<img width="924" height="490" alt="rel_taxa" src="https://github.com/user-attachments/assets/fb347005-8cc6-4bdc-b918-4cf6ceac27df" />
+
+
+
+
+
 
 ## Discussion
 
