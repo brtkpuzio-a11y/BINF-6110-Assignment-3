@@ -1,0 +1,268 @@
+# MICROBIOME ANALYSIS: OMNIVORE VS VEGAN DIET
+# Kraken2/Bracken taxonomic profiling 
+
+library(phyloseq)
+library(biomformat)
+library(ggplot2)
+library(vegan)
+library(rentrez)
+library(ANCOMBC)
+library(dplyr)
+library(patchwork)
+
+# 1. LOAD DATA
+kraken_biom <- read_biom("kraken_table.biom")
+ps <- import_biom(kraken_biom)
+
+# 2. BUILD METADATA FROM NCBI SRA
+sra_ids <- c(
+  "SRR8146935", "SRR8146936", "SRR8146938",  # Omnivore
+  "SRR8146944", "SRR8146951", "SRR8146952"   # Vegan
+)
+
+diet_map <- data.frame(
+  SRR  = sra_ids,
+  Diet = c(rep("Omnivore", 3), rep("Vegan", 3)),
+  stringsAsFactors = FALSE
+)
+
+# Retrieve SRA XML for a given run ID
+fetch_sra_xml <- function(run_id) {
+  result <- entrez_search(db = "sra", term = run_id)
+  if (length(result$ids) == 0) return(NA)
+  entrez_fetch(db = "sra", id = result$ids[1], rettype = "xml", parsed = FALSE)
+}
+
+# Extract BioSample accession from SRA XML
+extract_biosample <- function(xml) {
+  match <- regmatches(xml, regexpr("SAMN[0-9]+", xml))
+  if (length(match) == 0) return(NA)
+  match
+}
+
+# Fetch BioSample IDs for all runs
+biosample_ids <- sapply(sra_ids, function(id) {
+  xml <- fetch_sra_xml(id)
+  if (all(is.na(xml))) return(NA)
+  extract_biosample(xml)
+})
+
+# Fetch title and organism from BioSample database
+fetch_biosample_metadata <- function(i) {
+  accession <- biosample_ids[i]
+  if (is.na(accession)) return(NULL)
+  
+  search  <- entrez_search(db = "biosample", term = accession)
+  if (length(search$ids) == 0) return(NULL)
+  
+  summary <- entrez_summary(db = "biosample", id = search$ids[1])
+  
+  data.frame(
+    Run      = sra_ids[i],
+    BioSample = accession,
+    Title    = if (!is.null(summary$title))    summary$title    else NA,
+    Organism = if (!is.null(summary$organism)) summary$organism else NA,
+    stringsAsFactors = FALSE
+  )
+}
+
+metadata <- do.call(rbind, lapply(seq_along(biosample_ids), fetch_biosample_metadata))
+
+# Merge diet labels into metadata
+metadata <- merge(metadata, diet_map, by.x = "Run", by.y = "SRR")
+
+# Set sample IDs to match BIOM file naming convention (SRR_bracken_species)
+metadata$SampleID <- paste0(metadata$Run, "_bracken_species")
+rownames(metadata) <- metadata$SampleID
+
+# Attach metadata to phyloseq object
+sample_data(ps) <- sample_data(metadata)
+
+# 3. QUALITY CONTROL: RAREFACTION CURVES
+rarecurve(
+  as.data.frame(t(otu_table(ps))),
+  step = 1,
+  main = "Rarefaction Curves: Omnivore vs Vegan",
+  xlab = "Sequences Sampled",
+  ylab = "Observed Species"
+)
+
+# 4. TAXONOMIC COMPOSITION
+# Normalise to relative abundance
+ps_rel <- transform_sample_counts(ps, function(x) x / sum(x))
+
+# Detect finest available taxonomic rank (typically species)
+finest_rank <- rank_names(ps)[length(rank_names(ps))]
+
+# Helper: strip bracken suffix from sample names
+clean_sample <- function(x) gsub("_bracken_species", "", x)
+
+#Species level
+ps_species      <- tax_glom(ps_rel, taxrank = finest_rank)
+species_melted  <- psmelt(ps_species)
+species_melted$Sample       <- clean_sample(species_melted$Sample)
+species_melted$SpeciesLabel <- paste(gsub("g__", "", species_melted$Rank6),
+                                     gsub("s__", "", species_melted$Rank7))
+
+top15_species    <- names(sort(taxa_sums(ps_species), decreasing = TRUE)[1:15])
+species_filtered <- species_melted[species_melted$OTU %in% top15_species, ]
+
+ggplot(species_filtered,
+                       aes(x = Sample, y = Abundance, fill = SpeciesLabel)) +
+  geom_bar(stat = "identity", position = "stack") +
+  facet_wrap(~Diet, scales = "free_x") +
+  labs(title = "Top 15 Species Relative Abundance by Diet Group",
+       y = "Relative Abundance", x = "Sample", fill = "Species") +
+  theme_minimal() +
+  theme(axis.text.x  = element_text(angle = 45, hjust = 1),
+        legend.text  = element_text(size = 8, face = "italic"),
+        plot.title   = element_text(hjust = 0.5, face = "bold"))
+
+ps_genus     <- tax_glom(ps_rel, taxrank = "Rank6")
+genus_melted <- psmelt(ps_genus)
+genus_melted$Sample      <- clean_sample(genus_melted$Sample)
+genus_melted$GenusLabel  <- gsub("g__", "", genus_melted$Rank6)
+
+top10_genera   <- names(sort(taxa_sums(ps_genus), decreasing = TRUE)[1:10])
+genus_filtered <- genus_melted[genus_melted$OTU %in% top10_genera, ]
+
+ggplot(genus_filtered,
+       aes(x = Sample, y = Abundance, fill = GenusLabel)) +
+  geom_bar(stat = "identity", position = "stack") +
+  facet_wrap(~Diet, scales = "free_x") +
+  labs(title = "Genus Level Composition by Diet Group",
+       y = "Relative Abundance", x = "Sample", fill = "Genus") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.text = element_text(size = 8, face = "italic"),
+        plot.title  = element_text(hjust = 0.5, face = "bold"))
+
+#Family level
+ps_family     <- tax_glom(ps_rel, taxrank = "Rank5")
+family_melted <- psmelt(ps_family)
+family_melted$Sample      <- clean_sample(family_melted$Sample)
+family_melted$FamilyLabel <- gsub("f__", "", family_melted$Rank5)
+
+top10_families  <- names(sort(taxa_sums(ps_family), decreasing = TRUE)[1:10])
+family_filtered <- family_melted[family_melted$OTU %in% top10_families, ]
+
+ggplot(family_filtered,
+                      aes(x = Sample, y = Abundance, fill = FamilyLabel)) +
+  geom_bar(stat = "identity", position = "stack") +
+  facet_wrap(~Diet, scales = "free_x") +
+  labs(title = "Family Level Composition by Diet Group",
+       y = "Relative Abundance", x = "Sample", fill = "Family") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.text = element_text(size = 8),
+        plot.title  = element_text(hjust = 0.5, face = "bold"))
+
+# 5. ALPHA DIVERSITY
+alpha_metrics        <- estimate_richness(ps, measures = c("Observed", "Chao1", "Shannon", "Simpson"))
+alpha_metrics$Diet   <- sample_data(ps)$Diet
+alpha_metrics$Sample <- sample_names(ps)
+
+# Shannon t-test between diet groups
+shannon_ttest <- t.test(
+  alpha_metrics[alpha_metrics$Diet == "Omnivore", "Shannon"],
+  alpha_metrics[alpha_metrics$Diet == "Vegan",    "Shannon"]
+)
+print(shannon_ttest)
+
+# Alpha diversity boxplot with individual points overlaid
+plot_richness(ps, x = "Diet", color = "Diet",
+                            measures = c("Observed", "Chao1", "Shannon", "Simpson")) +
+  geom_boxplot(aes(fill = Diet), alpha = 0.3, outlier.shape = NA) +
+  geom_point(aes(color = Diet), size = 3, position = position_jitter(width = 0.1)) +
+  labs(title = "Alpha Diversity by Diet Group", x = "Diet", y = "Diversity Value") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        strip.text  = element_text(face = "bold"),
+        plot.title  = element_text(hjust = 0.5, face = "bold"))
+
+# 6. BETA DIVERSITY
+#PCoA (Bray-Curtis)
+pcoa_ord <- ordinate(ps, method = "PCoA", distance = "bray")
+
+pcoa_coords <- plot_ordination(ps, pcoa_ord, color = "Diet", justDF = TRUE)
+
+hulls <- pcoa_coords %>%
+  group_by(Diet) %>%
+  slice(chull(Axis.1, Axis.2))
+
+ggplot(pcoa_coords, aes(x = Axis.1, y = Axis.2, color = Diet)) +
+  geom_polygon(data = hulls, aes(fill = Diet, group = Diet),
+               alpha = 0.15, linetype = "dashed", linewidth = 0.8) +
+  geom_point(size = 4) +
+  labs(title = "PCoA Ordination (Bray-Curtis)", x = "Axis 1", y = "Axis 2") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+
+#NMDS (Bray-Curtis)
+nmds_ord <- ordinate(ps, method = "NMDS", distance = "bray")
+
+plot_ordination(ps, nmds_ord, color = "Diet",
+                             title = "NMDS Ordination (Bray-Curtis)") +
+  geom_point(size = 4) +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+
+#PERMANOVA: tests whether community composition differs by diet
+sample_meta <- as(sample_data(ps), "data.frame")
+
+permanova_result <- adonis2(
+  phyloseq::distance(ps, method = "bray") ~ Diet,
+  data = sample_meta
+)
+print(permanova_result)
+
+# 7. DIFFERENTIAL ABUNDANCE (ANCOMBC2)
+ancombc_results <- ancombc2(
+  data         = ps,
+  tax_level    = finest_rank,
+  fix_formula  = "Diet",
+  rand_formula = NULL,
+  p_adj_method = "holm",
+  pseudo_sens  = TRUE,
+  prv_cut      = 0,
+  lib_cut      = 1000,
+  s0_perc      = 0.05,
+  group        = "Diet",
+  struc_zero   = TRUE,
+  neg_lb       = TRUE
+)
+
+# Merge ANCOMBC results with taxonomy table to get clean genus + species labels
+tax_df        <- as.data.frame(tax_table(ps))
+tax_df$taxon  <- tax_df[[finest_rank]]
+
+ancombc_merged <- merge(
+  ancombc_results$res,
+  tax_df[, c("taxon", "Rank6", "Rank7")],
+  by     = "taxon",
+  all.x  = TRUE
+)
+
+ancombc_merged$clean_taxon <- paste(
+  gsub("g__", "", ancombc_merged$Rank6),
+  gsub("s__", "", ancombc_merged$Rank7)
+)
+
+#Lollipop plot: LFC ranked by direction
+ggplot(ancombc_merged,
+                        aes(x = lfc_DietVegan,
+                            y = reorder(clean_taxon, lfc_DietVegan))) +
+  geom_point(aes(color = q_DietVegan < 0.05), size = 3) +
+  geom_errorbar(aes(xmin = lfc_DietVegan - se_DietVegan,
+                    xmax = lfc_DietVegan + se_DietVegan),
+                width = 0.2) +
+  geom_vline(xintercept = 0, color = "red", linetype = "dashed", linewidth = 1) +
+  scale_color_manual(values = c("FALSE" = "gray50", "TRUE" = "red"),
+                     labels = c("Not significant", "q < 0.05")) +
+  labs(title  = "Differential Abundance: Vegan vs Omnivore",
+       x      = "Log Fold Change (Vegan / Omnivore)",
+       y      = "Species",
+       color  = "Significance") +
+  theme_minimal() +
+  theme(axis.text.y = element_text(size = 7, face = "italic"),
+        plot.title  = element_text(hjust = 0.5, face = "bold"))
