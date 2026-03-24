@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+#SBATCH --job-name=kraken_biom
+#SBATCH --output=logs/krakenb_%j.out
+#SBATCH --error=logs/krakenb_%j.err
+#SBATCH --time=12:00:00
+#SBATCH --mem=32G
+#SBATCH --cpus-per-task=16
+
+set -euo pipefail
+
+module load apptainer
+
+# paths
+SRR=(
+"bracken_output/SRR8146935_bracken_species.report"
+"bracken_output/SRR8146936_bracken_species.report"
+"bracken_output/SRR8146938_bracken_species.report"
+"bracken_output/SRR8146944_bracken_species.report"
+"bracken_output/SRR8146951_bracken_species.report"
+"bracken_output/SRR8146952_bracken_species.report"
+)
+
+SIF="kraken-biom_1.0.1--py_2.sif"
+INPUT="bracken_output"
+OUTDIR="kraken-biom_output"
+OUTFILE="$OUTDIR/kraken_table.biom"
+REPORTS=()
+for sample in "${SRR[@]}"; do
+    REPORTS+=("${sample}")
+done
+
+if [ ${#REPORTS[@]} -eq 0 ]; then
+    echo "No .report files found in $INPUT"
+    exit 1
+fi
+
+echo "Found ${#REPORTS[@]} report files"
+
+apptainer exec \
+    --bind "$PWD","$SCRATCH" \
+    "$SIF" \
+    kraken-biom \
+    "${REPORTS[@]}" \
+    -o "$OUTFILE"
