@@ -62,7 +62,7 @@ Beta diversity was assessed using Bray-Curtis dissimilarity visualised through P
 
 <img width="924" height="362" alt="PcoA" src="https://github.com/user-attachments/assets/966e7f19-ec87-42ce-a4b0-f9fb02ef692c" />
 
-Figure 6: Principal coordinates analysis (PCoA) of Bray–Curtis dissimilarity illustrating differences in microbial community composition between omnivore and vegan samples. Each point represents an individual sample, coloured by diet group, with dashed lines indicating convex hulls encompassing each group. While some separation along the second axis is observed, substantial overlap between groups is evident, consistent with the non-significant PERMANOVA result and indicating limited diet-associated structuring of community composition.
+Figure 6: Principal coordinates analysis (PCoA) of Bray–Curtis dissimilarity illustrating differences in microbial community composition between omnivore and vegan samples. Each point represents an individual sample, coloured by diet group. While some separation along the second axis is observed, substantial overlap between groups is evident, consistent with the non-significant PERMANOVA result and indicating limited diet-associated structuring of community composition.
 
 <img width="924" height="362" alt="NMDS" src="https://github.com/user-attachments/assets/59cc7cc5-85a2-47c5-aa80-b8bbbf4595e2" />
 
