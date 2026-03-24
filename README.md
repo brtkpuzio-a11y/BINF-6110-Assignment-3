@@ -11,29 +11,70 @@ Downstream community analysis was performed in R using the phyloseq framework fo
 ### Data Acquisition
 
 Shotgun metagenomic sequencing data were obtained from De Filippis et al. [2], originally deposited in the NCBI Sequence Read Archive under BioProject PRJNA506972. Six samples were retrieved (SRR8146935, SRR8146936, SRR8146938, SRR8146944, SRR8146951, SRR8146952), corresponding to three omnivore and three vegan donors. Raw SRA files were downloaded using prefetch from the SRA Toolkit on the Narval high-performance computing cluster (Digital Research Alliance of Canada). FASTQ files were extracted from SRA format using fasterq-dump with paired-end splitting (--split-files, 32 threads), executed as a SLURM array job across all six samples. Output files were compressed with gzip and integrity-verified prior to downstream processing.
+
 ### Taxonomic Classification
 
 Taxonomic classification of paired-end reads was performed using Kraken2 [3] against a custom Kraken2 database (kraken_db), with a confidence threshold of 0.15 (--confidence 0.15) and 32 threads per sample. Classification was run as a SLURM array job (64 GB RAM, 24-hour time limit per job). Kraken2 outputs per-read classification files and per-sample taxonomic report files. Species-level abundance re-estimation was subsequently performed using Bracken [4], which applies a Bayesian approach to redistribute reads assigned to higher taxonomic nodes back to species level, producing corrected abundance reports per sample. The six Bracken species-level report files were combined into a single BIOM-format abundance table using kraken-biom (v1.0.1), executed via Apptainer on Narval. The resulting kraken_table.biom file served as input for all downstream R analyses.
+
 ### Downstream Analysis in R
 
 All downstream analyses were performed in R using the phyloseq framework (v1.46) for data import, management, and visualisation [6]. The BIOM file was imported using the biomformat package and converted to a phyloseq object. Sample metadata, including BioSample accession, organism, and diet group assignment, were retrieved programmatically from the NCBI SRA and BioSample databases using the rentrez package and merged with the phyloseq object.
 Sequencing adequacy was assessed by rarefaction curve analysis using the rarecurve function from the vegan package [7]. Taxonomic composition was visualised at the genus, family, and species levels by agglomerating taxa with tax_glom(), transforming to relative abundance with transform_sample_counts(), and plotting stacked bar charts using ggplot2 [8].
-Alpha diversity was estimated using Observed species richness, Chao1, Shannon, and Simpson indices via the estimate_richness() function in phyloseq. Differences in Shannon diversity between diet groups were assessed using a Welch two-sample t-test.
-Beta diversity was assessed using Bray-Curtis dissimilarity. Principal coordinates analysis (PCoA) and non-metric multidimensional scaling (NMDS) ordinations were computed using the ordinate() function in phyloseq. Convex hulls were drawn per diet group using chull() to aid visual interpretation. The statistical significance of community composition differences between diet groups was tested using PERMANOVA (adonis2, 999 permutations) from the vegan package [7].
-Differential abundance analysis between omnivore and vegan groups was performed using ANCOMBC2 from the ANCOMBC package [5], with Diet as the fixed effect, Holm multiple testing correction, structural zero detection enabled (struc_zero = TRUE), and a minimum library size of 1,000 reads (lib_cut = 1000). Results were visualised as a ranked lollipop plot showing log fold change with standard error bars for all 66 tested taxa.
+Alpha diversity was estimated using Observed species richness, Chao1, Shannon, and Simpson indices via the estimate_richness() function in phyloseq. Differences in Shannon diversity between diet groups were assessed using a Welch two-sample t-test. Beta diversity was assessed using Bray-Curtis dissimilarity. Principal coordinates analysis (PCoA) and non-metric multidimensional scaling (NMDS) ordinations were computed using the ordinate() function in phyloseq. The statistical significance of community composition differences between diet groups was tested using PERMANOVA (adonis2, 999 permutations) from the vegan package [7]. Differential abundance analysis between omnivore and vegan groups was performed using ANCOMBC2 from the ANCOMBC package [5], with Diet as the fixed effect, Holm multiple testing correction, structural zero detection enabled (struc_zero = TRUE), and a minimum library size of 1,000 reads (lib_cut = 1000). Results were visualised as a ranked lollipop plot showing log fold change with standard error bars for all 66 tested taxa.
 
 ## Results
-<img width="924" height="490" alt="Alpha" src="https://github.com/user-attachments/assets/e6cf39dd-9e29-4917-95e9-8d233019ec54" />
-<img width="924" height="490" alt="diff_abd" src="https://github.com/user-attachments/assets/422d0b59-c2e3-4ee2-ab46-22f6b22637e7" />
-<img width="924" height="490" alt="family comp" src="https://github.com/user-attachments/assets/6895cd0f-5688-4745-a6b7-18ca440ceac9" />
-<img width="924" height="559" alt="genus" src="https://github.com/user-attachments/assets/b6c1ab60-649e-436b-8ac3-9540e94a377a" />
+
+### Sequencing Depth and Quality Control
+
+Rarefaction curves were generated to assess whether sequencing depth was sufficient to capture the microbial diversity present in each sample (Figure 1). Sequencing depth ranged from 348,708 reads (SRR8146938) to 676,187 reads (SRR8146951). All six rarefaction curves reached a clear plateau, indicating that sequencing depth was adequate to capture the observed species richness in each sample and that additional sequencing would yield minimal new taxa.
+
 <img width="924" height="490" alt="rare" src="https://github.com/user-attachments/assets/06a1541e-3649-46c7-8d32-e169085d4657" />
+
+Figure 1: Rarefaction Curves for Omnivore and Vegan Samples. Rarefaction curves showing the accumulation of observed species as a function of sequencing depth for each sample. All samples approach a clear asymptote, indicating sufficient sequencing depth to capture the majority of microbial diversity present. This suggests that downstream diversity comparisons are unlikely to be confounded by undersampling.
+
+### Taxonomic Composition
+
+Taxonomic composition was characterised at the genus, family, and species levels (Figures 2, 3, 4). At the genus level, Segatella (formerly Prevotella) was the dominant taxon across vegan samples, while omnivore samples displayed greater variability, with Alistipes, Bacteroides, and Faecalibacterium more prominently represented. At the family level, Prevotellaceae was visually dominant in vegan donors, while omnivore samples showed higher relative abundance of Bacteroidaceae and Rikenellaceae. At the species level, the top 15 most abundant species included Segatella copri, Faecalibacterium prausnitzii, and Alistipes onderdonkii, with notable compositional differences between diet groups.
+
+<img width="924" height="559" alt="genus" src="https://github.com/user-attachments/assets/b6c1ab60-649e-436b-8ac3-9540e94a377a" />
+
+Figure 2: Genus-Level Taxonomic Composition by Diet Group. Relative abundance of dominant microbial genera across samples, aggregated at the genus level and stratified by diet. Patterns of genus-level composition vary substantially between individuals, with no clear separation between omnivore and vegan groups, further supporting the absence of strong diet-driven differences in community structure.
+
+<img width="924" height="490" alt="family comp" src="https://github.com/user-attachments/assets/6895cd0f-5688-4745-a6b7-18ca440ceac9" />
+
+Figure 3: Family-Level Taxonomic Composition by Diet Group. Relative abundance of dominant microbial families across samples, aggregated at the family level and stratified by diet. While differences in family-level composition are observed between individual samples, no consistent diet-associated clustering is evident, indicating that inter-individual variation exceeds group-level effects.
+
 <img width="924" height="490" alt="rel_taxa" src="https://github.com/user-attachments/assets/fb347005-8cc6-4bdc-b918-4cf6ceac27df" />
 
+Figure 4: Top 15 Taxa Relative Abundance by Diet Group. Relative abundance of the 15 most abundant microbial species across samples, stratified by diet group. Taxa were aggregated at the species level following Bracken re-estimation and normalised to relative abundance. Considerable inter-individual variability is evident within both diet groups, with no consistent pattern of species dominance distinguishing omnivore and vegan donors.
 
+### Alpha Diversity
 
+Alpha diversity was estimated using Observed species richness, Chao1, Shannon, and Simpson indices (Figure 5). Omnivore samples showed higher mean Shannon diversity (mean = 2.81) compared to vegan samples (mean = 2.32), as well as higher mean Simpson index (mean = 0.845 vs 0.717). However, vegan samples showed marginally higher mean observed species richness (mean = 112.7 vs 100.7). A Welch two-sample t-test comparing Shannon diversity between diet groups was not statistically significant (t = 0.849, df = 3.61, p = 0.449), which is expected given the small sample size of three donors per group.
 
+<img width="924" height="490" alt="Alpha" src="https://github.com/user-attachments/assets/e6cf39dd-9e29-4917-95e9-8d233019ec54" />
 
+Figure 5: Alpha Diversity by Diet Group. Alpha diversity metrics (Observed richness, Chao1, Shannon, and Simpson indices) comparing gut microbial communities between omnivore and vegan donors. While vegan samples exhibited marginally higher observed richness and Chao1 estimates, omnivore samples showed consistently higher Shannon and Simpson diversity, indicating greater community evenness. Substantial overlap between groups across all metrics suggests no statistically significant differences in alpha diversity.
+
+### Beta Diversity
+
+Beta diversity was assessed using Bray-Curtis dissimilarity visualised through PCoA and NMDS ordination (Figures 6, 7). The NMDS solution converged with a near-zero stress value (stress = 1.78 × 10⁻⁵), indicating an excellent low-dimensional representation of the dissimilarity structure. Visual inspection of both ordinations suggested some separation between omnivore and vegan samples, though with considerable spread within groups. PERMANOVA did not detect a statistically significant difference in community composition between diet groups (R² = 0.181, F = 0.887, p = 0.500), indicating that diet explained approximately 18% of the variance in Bray-Curtis dissimilarity but that this effect was not significant given the sample size.
+
+<img width="924" height="362" alt="PcoA" src="https://github.com/user-attachments/assets/966e7f19-ec87-42ce-a4b0-f9fb02ef692c" />
+
+Figure 6: Principal Coordinates Analysis (PCoA) of Bray–Curtis Dissimilarity. Principal coordinates analysis (PCoA) of Bray–Curtis dissimilarity illustrating differences in microbial community composition between omnivore and vegan samples. Each point represents an individual sample, coloured by diet group, with dashed lines indicating convex hulls encompassing each group. While some separation along the second axis is observed, substantial overlap between groups is evident, consistent with the non-significant PERMANOVA result and indicating limited diet-associated structuring of community composition.
+
+<img width="924" height="362" alt="NMDS" src="https://github.com/user-attachments/assets/59cc7cc5-85a2-47c5-aa80-b8bbbf4595e2" />
+
+Figure 7. Non-metric Multidimensional Scaling (NMDS) of Bray–Curtis Dissimilarity. Non-metric multidimensional scaling (NMDS) ordination based on Bray–Curtis dissimilarity showing the relative similarity of microbial communities across samples. Points represent individual samples coloured by diet group. Despite minor clustering tendencies, considerable overlap between omnivore and vegan samples is observed, supporting the conclusion that diet does not drive a statistically significant shift in overall community composition in this dataset.
+
+### Differential Abundance
+
+Differential abundance analysis was performed using ANCOMBC2 with Holm multiple testing correction across 66 taxa (Figure 8). No taxa reached statistical significance after correction (q < 0.05). The species with the largest positive log fold change in vegan donors were Blautia wexlerae (LFC = 3.64), Anaerostipes hadrus (LFC = 3.17), and Ruminococcus bicirculans (LFC = 3.09), all with q-values of 1 following correction. The species most enriched in omnivore donors included Alistipes onderdonkii (LFC = −3.96), Butyricimonas virosa (LFC = −2.69), and Alistipes ihumii (LFC = −2.52). The absence of statistically significant findings is consistent with the limited statistical power conferred by a sample size of three per group.
+
+<img width="924" height="490" alt="diff_abd" src="https://github.com/user-attachments/assets/422d0b59-c2e3-4ee2-ab46-22f6b22637e7" />
+
+Figure 8: Differential Abundance Between Vegan and Omnivore Diets. Differential abundance analysis of microbial taxa between vegan and omnivore groups using ANCOMBC2. Log fold change values represent enrichment in vegan relative to omnivore samples, with error bars indicating standard error. The vertical dashed line denotes no difference (log fold change = 0). Although several taxa display large effect sizes, no taxa were significantly different following Holm-adjusted multiple testing correction (q < 0.05), reflecting high variability and limited statistical power.
 
 ## Discussion
 
