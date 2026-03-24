@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+#SBATCH --job-name=braken
+#SBATCH --output=logs/brak%a.out
+#SBATCH --error=logs/brak%a.err
+#SBATCH --time=24:00:00
+#SBATCH --mem=32G
+#SBATCH --cpus-per-task=32
+#SBATCH --array=0-5
+
+set -euo pipefail
+mkdir -p bracken_output
+module load bracken
+
+SAMPLES=(raw/SRR*/*.sra)
+OUTDIR="bracken_output"
+
+SAMPLE="${SAMPLES[$SLURM_ARRAY_TASK_ID]}"
+NAME=$(basename "${SAMPLE}" .sra)
+
+# Re-estimate abundance
+bracken \
+    -d kraken_db \
+    -i kraken_output/${NAME}/classification/${NAME}.report \
+    -o ${OUTDIR}/${NAME}.bracken
